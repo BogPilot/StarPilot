@@ -38,6 +38,39 @@ this adaptation. Detailed code lineage is recorded in [CREDITS.md](CREDITS.md#hy
 StarPilot has a vibrant, welcoming community [discord](https://firestar.link/discord).
 Stop by to chat or ask questions!
 
+## BogStar: Tesla AP1 Model S (branch `bogstar`)
+
+The `bogstar` branch is StarPilot with BogPilot's Tesla AP1 Model S support
+(AP1 cars with the stock Mobileye/Bosch autopilot hardware, HW1). It is
+experimental and community-maintained. It is not a product, comes with no
+warranty, and the driver remains fully responsible for the vehicle at all times.
+
+What the branch adds for AP1 (`TESLA_MODEL_S_HW1`, detected from the brake
+booster, radar and EPAS firmware):
+
+* `tesla_ap1` panda safety mode, selected by the AP1 `HAS_AP` safety flag. Stock
+  autopilot frames pass through whenever openpilot is not sending its own copy.
+  StarPilot's existing pre-AP, legacy and Model 3/Y/S/X Tesla paths are unchanged.
+* Lateral control through `DAS_steeringControl` with a short resume hold and a
+  soft start after the driver lets go of the wheel.
+* openpilot longitudinal (`DAS_control`). The panda only accepts it on a DEBUG
+  panda build (the firmware committed in this branch); a release panda keeps
+  stock ACC.
+* Instrument cluster integration (`AutopilotStatus`, `DAS_status2`, `DAS_lanes`).
+* Speed limits read from CAN and shown through StarPilot's dashboard speed limit.
+* Holding the cruise stalk pulled for about 2 seconds toggles Experimental Mode
+  while engaged; the stalk follow-distance setting selects the driving personality.
+* A "BogPilot" startup-alert preset in the StarPilot appearance settings.
+
+Credits: the AP1 CAN and safety logic follows the work of
+[BogGyver](https://github.com/BogGyver) and the Tinkla project, ported through
+[BogPilot](https://github.com/BogPilot). It is built on
+[StarPilot](https://github.com/firestar5683/StarPilot) by firestar5683, which is
+built on [FrogPilot](https://github.com/FrogAi/FrogPilot) and
+[openpilot](https://github.com/commaai/openpilot). Released under the MIT
+license, like StarPilot and openpilot (see [LICENSE](LICENSE)). Please send AP1
+issues to BogPilot, not to the StarPilot or FrogPilot projects.
+
 ## Documentation
 
 Please see [https://wiki.firestar.link](https://wiki.firestar.link) for hardware lists,

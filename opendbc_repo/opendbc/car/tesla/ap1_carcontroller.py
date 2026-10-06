@@ -22,6 +22,7 @@ model_path_x / model_path_y before each apply (AP1 only). Empty -> actuator curv
 
 from opendbc.can import CANPacker
 from opendbc.car import Bus, structs
+from opendbc.car.can_definitions import CanData
 from opendbc.car.carlog import carlog
 from opendbc.car.interfaces import CarControllerBase
 from opendbc.car.tesla.ap1_actuator_plan import (
@@ -177,7 +178,7 @@ class Ap1CarController(CarControllerBase):
         model_path=model_path,
       )
       frames = self.cluster.update(h, CS.cluster_stock, now_nanos)
-      return [(addr, dat, CLUSTER_BUS) for addr, dat in frames]
+      return [CanData(addr, dat, CLUSTER_BUS) for addr, dat in frames]
     except Exception:
       carlog.exception("tesla ap1 cluster frames disabled")
       self.cluster = None

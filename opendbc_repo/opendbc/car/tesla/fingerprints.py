@@ -10,6 +10,12 @@ FW_VERSIONS = {
       b'1016704-00-HAA\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00',
       b'\x10\x00A',
     ],
+    (Ecu.electricBrakeBooster, 0x64d, None): [
+      b'1037123-00-A',
+    ],
+    (Ecu.fwdRadar, 0x671, None): [
+      b'\x01\x00W\x00\x00\x00\x07\x00\x00\x00\x00\x08\x00\x00\x00\x00\t\xff\xfe',
+    ],
   },
   CAR.TESLA_MODEL_3: {
     (Ecu.eps, 0x730, None): [

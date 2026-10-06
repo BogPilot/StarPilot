@@ -70,8 +70,10 @@ class CAR(Platforms):
       Bus.radar: 'tesla_radar_bosch_generated',
     },
   )
+  # BogStar: AP1 (Mobileye / HW1) Model S runs the BogPilot AP1 port (ap1_*.py, safety tesla_ap1.h).
+  # Platform name kept from StarPilot so saved car selections still resolve.
   TESLA_MODEL_S_HW1 = TeslaPlatformConfig(
-    [CarDocs("Tesla Model S (with HW1) 2014-16", "All", support_type=SupportType.COMMUNITY, support_link="#community")],
+    [CarDocs("Tesla AP1 Model S (with HW1) 2014-16", "All", support_type=SupportType.COMMUNITY, support_link="#community")],
     CarSpecs(mass=2100., wheelbase=2.960, steerRatio=15.0),
     {
       Bus.chassis: 'tesla_can',
@@ -88,8 +90,27 @@ FW_QUERY_CONFIG = FwQueryConfig(
       [StdQueries.TESTER_PRESENT_REQUEST, StdQueries.SUPPLIER_SOFTWARE_VERSION_REQUEST],
       [StdQueries.TESTER_PRESENT_RESPONSE, StdQueries.SUPPLIER_SOFTWARE_VERSION_RESPONSE],
       bus=0,
-    )
-  ]
+    ),
+    # AP1 Model S: brake booster 0x64d -> 0x65d and Bosch radar 0x671 -> 0x681 answer UDS F181 on the
+    # chassis bus (same request as BogPilot's AP1 port; seen on AP1 rlogs).
+    Request(
+      [StdQueries.TESTER_PRESENT_REQUEST, StdQueries.UDS_VERSION_REQUEST],
+      [StdQueries.TESTER_PRESENT_RESPONSE, StdQueries.UDS_VERSION_RESPONSE],
+      whitelist_ecus=[Ecu.electricBrakeBooster, Ecu.fwdRadar],
+      rx_offset=0x10,
+      bus=0,
+    ),
+    # AP1 Model S EPAS 0x730 -> 0x738 answers UDS F188 (manufacturer ECU software number) on AP1 rlogs.
+    Request(
+      [StdQueries.TESTER_PRESENT_REQUEST, StdQueries.MANUFACTURER_SOFTWARE_VERSION_REQUEST],
+      [StdQueries.TESTER_PRESENT_RESPONSE, StdQueries.MANUFACTURER_SOFTWARE_VERSION_RESPONSE],
+      whitelist_ecus=[Ecu.eps],
+      rx_offset=0x08,
+      bus=0,
+    ),
+  ],
+  # The radar answer is AP1-car specific; an HW1 car whose radar does not answer still matches on the EPAS.
+  non_essential_ecus={Ecu.fwdRadar: [CAR.TESLA_MODEL_S_HW1]},
 )
 
 
@@ -98,6 +119,9 @@ class CANBUS:
   radar = 1
   vehicle = radar
   autopilot_party = 2
+  # AP1 Model S aliases. Same numbers as party / autopilot_party.
+  chassis = 0
+  autopilot_chassis = 2
 
 
 GEAR_MAP = {
@@ -115,6 +139,18 @@ AVERAGE_ROAD_ROLL = 0.06  # ~3.4 degrees, 6% superelevation. higher actual roll 
 
 
 class CarControllerParams:
+  # AP1 Model S: Tinkla earlytesla-panda TESLA_LOOKUP_ANGLE_RATE_UP / _DOWN.
+  # Used by ap1_carcontroller. Model 3/Y still uses ANGLE_LIMITS below.
+  AP1_ANGLE_LIMITS = AngleSteeringLimits(
+    819.2,  # deg, EPAS_internalSAS range
+    ([2., 7., 17.], [8., 4., 2.5]),
+    ([2., 7., 17.], [9., 5., 4.5]),
+  )
+  AP1_STEER_STEP = 2  # 50 Hz
+  AP1_ACCEL_TO_SPEED_MULTIPLIER = 3
+  AP1_JERK_LIMIT_MAX = 8
+  AP1_JERK_LIMIT_MIN = -8
+
   ANGLE_LIMITS: AngleSteeringLimits = AngleSteeringLimits(
     # EPAS faults above this angle
     360,  # deg
@@ -146,8 +182,23 @@ class TeslaSafetyFlags(IntFlag):
   COOP_STEERING = 256
 
 
+class TeslaAp1SafetyFlags(IntFlag):
+  """AP1 Model S safety param (opendbc/safety/modes/tesla_ap1.h).
+
+  Numbering is BogGyver/Tinkla's (BogGyver/panda board/safety/safety_tesla.h, FLAG_TESLA_*):
+    POWERTRAIN = 1, LONG_CONTROL = 2, RADAR_BEHIND_NOSECONE = 4, HAS_IC_INTEGRATION = 8,
+    HAS_AP = 16, NEED_RADAR_EMULATION = 32, ENABLE_HAO = 64, HAS_IBOOSTER = 128.
+  This port implements only HAS_AP (selects the AP1 safety) and LONG_CONTROL (chassis 0x2b9).
+  The other BogGyver/Tinkla bits are not implemented and are never set. In particular bit 8 is
+  StarPilot's TeslaSafetyFlags.FLAG_HW1 (routes to tesla_legacy.h) and must stay clear for AP1.
+  """
+  LONG_CONTROL = 2
+  HAS_AP = 16
+
+
 class TeslaFlags(IntFlag):
   LONG_CONTROL = 1
+  AP1 = 0x100
 
 
 class CruiseButtons:
@@ -171,7 +222,10 @@ class CruiseButtons:
 
 DBC = CAR.create_dbc_map()
 
-LEGACY_CARS = (CAR.TESLA_MODEL_S_HW1,)
+# StarPilot's legacy HW1 stack (tesla_legacy.h / update_legacy) is kept in the tree but no platform
+# routes to it on BogStar: the HW1 Model S uses the AP1 port (AP1_CARS).
+LEGACY_CARS: tuple = ()
+AP1_CARS = (CAR.TESLA_MODEL_S_HW1,)
 
 STEER_THRESHOLD = 1
 STEER_DISENGAGE_THRESHOLD = 5.0

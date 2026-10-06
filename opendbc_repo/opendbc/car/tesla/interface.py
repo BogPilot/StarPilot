@@ -1,9 +1,11 @@
 from opendbc.car import Bus, get_safety_config, structs
 from opendbc.car.interfaces import CarInterfaceBase
+from opendbc.car.tesla.ap1_carcontroller import Ap1CarController
+from opendbc.car.tesla.ap1_carstate import Ap1CarState
 from opendbc.car.tesla.carcontroller import CarController
 from opendbc.car.tesla.carstate import CarState
 from opendbc.car.tesla.radar_interface import RadarInterface
-from opendbc.car.tesla.values import TeslaSafetyFlags, CAR, DBC, LEGACY_CARS
+from opendbc.car.tesla.values import AP1_CARS, TeslaAp1SafetyFlags, TeslaFlags, TeslaSafetyFlags, CAR, DBC, LEGACY_CARS
 from opendbc.car.tesla.preap.interface import get_preap_accel_limits, get_preap_params
 
 
@@ -11,6 +13,13 @@ class CarInterface(CarInterfaceBase):
   CarState = CarState
   CarController = CarController
   RadarInterface = RadarInterface
+
+  def __init__(self, CP: structs.CarParams, FPCP):
+    if CP.flags & TeslaFlags.AP1:
+      # AP1 Model S: swap in the AP1 chassis stack before CarInterfaceBase builds CS/CC.
+      self.CarState = Ap1CarState
+      self.CarController = Ap1CarController
+    super().__init__(CP, FPCP)
 
   @staticmethod
   def get_pid_accel_limits(CP, current_speed, cruise_speed):
@@ -31,6 +40,11 @@ class CarInterface(CarInterfaceBase):
 
     if candidate == CAR.TESLA_MODEL_S_PREAP:
       return get_preap_params(ret)
+
+    # AP1 Model S is its own port (BogPilot AP1, BogGyver/Tinkla reference). Return before any
+    # legacy HW1 or Model 3/Y/X setting is applied.
+    if candidate in AP1_CARS:
+      return CarInterface._get_params_ap1(ret)
 
     if candidate in LEGACY_CARS:
       ret.safetyConfigs = [get_safety_config(structs.CarParams.SafetyModel.tesla, TeslaSafetyFlags.FLAG_HW1.value)]
@@ -67,4 +81,34 @@ class CarInterface(CarInterfaceBase):
 
     ret.dashcamOnly = candidate in (CAR.TESLA_MODEL_X) # dashcam only, pending find invalidLkasSetting signal
 
+    return ret
+
+  @staticmethod
+  def _get_params_ap1(ret: structs.CarParams) -> structs.CarParams:
+    """AP1 Model S (Mobileye, chassis bus 0). Nothing shared with Model 3/Y/X or the legacy HW1 stack.
+
+    Reference: BogGyver/Tinkla AP1 (BogGyver/openpilot tesla_unity_dev selfdrive/car/tesla/interface.py and
+    BogGyver/panda board/safety/safety_tesla.h), via BogPilot's AP1 port.
+
+    Longitudinal is openpilot's by default and is not gated on alpha long (BogPilot AP1 branch). The panda
+    only honors it in a DEBUG (ALLOW_DEBUG) build; a release panda keeps stock ACC.
+    """
+    ret.flags |= TeslaFlags.AP1.value
+    # BogGyver/Tinkla FLAG_TESLA_HAS_AP selects tesla_ap1.h; FLAG_TESLA_LONG_CONTROL allows chassis 0x2b9.
+    # Never set TeslaSafetyFlags.FLAG_HW1 (8): that routes to tesla_legacy.h.
+    ret.safetyConfigs = [get_safety_config(structs.CarParams.SafetyModel.tesla,
+                                           int(TeslaAp1SafetyFlags.HAS_AP | TeslaAp1SafetyFlags.LONG_CONTROL))]
+    ret.steerControlType = structs.CarParams.SteerControlType.angle
+    ret.openpilotLongitudinalControl = True
+    ret.alphaLongitudinalAvailable = False
+    ret.radarUnavailable = True
+    ret.dashcamOnly = False
+    ret.pcmCruise = True
+    # BogGyver/Tinkla does not steer at standstill.
+    ret.steerAtStandstill = False
+    # BogGyver/Tinkla interface.py: steerLimitTimer 1.0, steerActuatorDelay 0.25,
+    # longitudinalActuatorDelayUpperBound 0.5
+    ret.steerLimitTimer = 1.0
+    ret.steerActuatorDelay = 0.25
+    ret.longitudinalActuatorDelay = 0.5
     return ret

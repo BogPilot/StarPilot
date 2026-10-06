@@ -13,6 +13,7 @@
 #include "opendbc/safety/modes/tesla.h"
 #include "opendbc/safety/modes/tesla_preap.h"
 #include "opendbc/safety/modes/tesla_legacy.h"
+#include "opendbc/safety/modes/tesla_ap1.h"
 #include "opendbc/safety/modes/gm.h"
 #include "opendbc/safety/modes/ford.h"
 #include "opendbc/safety/modes/hyundai.h"
@@ -503,8 +504,14 @@ int set_safety_hooks(uint16_t mode, uint16_t param) {
   int hook_config_count = sizeof(safety_hook_registry) / sizeof(safety_hook_config);
   for (int i = 0; i < hook_config_count; i++) {
     if (safety_hook_registry[i].id == mode) {
-      current_hooks = ((mode == SAFETY_TESLA) && GET_FLAG(param, TESLA_LEGACY_FLAG_HW1)) ?
-                      &tesla_legacy_hooks : safety_hook_registry[i].hooks;
+      if ((mode == SAFETY_TESLA) && GET_FLAG(param, TESLA_LEGACY_FLAG_HW1)) {
+        current_hooks = &tesla_legacy_hooks;
+      } else if ((mode == SAFETY_TESLA) && GET_FLAG(param, TESLA_AP1_FLAG_HAS_AP)) {
+        // AP1 Model S (BogGyver/Tinkla FLAG_TESLA_HAS_AP). Model 3/Y/X never set bit 16.
+        current_hooks = &tesla_ap1_hooks;
+      } else {
+        current_hooks = safety_hook_registry[i].hooks;
+      }
       current_safety_mode = mode;
       current_safety_param = param;
       set_status = 0;  // set

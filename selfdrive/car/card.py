@@ -33,6 +33,7 @@ from openpilot.starpilot.common.favorite_slots import (
   FAVORITE_ACTION_ACCEL_COUNTER,
   FAVORITE_ACTION_DECEL_COUNTER,
 )
+from openpilot.selfdrive.car.tesla_ap1_card import TeslaAp1CardHooks, is_tesla_ap1
 from openpilot.starpilot.common.starpilot_variables import always_on_lateral_available, get_starpilot_toggles, update_starpilot_toggles
 from openpilot.starpilot.common.lateral_only_experimental import experimental_mode_available
 from openpilot.starpilot.controls.starpilot_card import StarPilotCard
@@ -259,6 +260,9 @@ class Car:
     starpilot_services = ['starpilotOnroadEvents', 'starpilotPlan', 'starpilotSelfdriveState', 'liveCalibration', 'selfdriveState']
     if self.CP.brand == "rivian":
       starpilot_services.append('liveParameters')
+    self.tesla_ap1_hooks = TeslaAp1CardHooks(self.params) if is_tesla_ap1(self.CP) else None
+    if self.tesla_ap1_hooks is not None:
+      starpilot_services += TeslaAp1CardHooks.SERVICES
     self.sm = self.sm.extend(starpilot_services)
     self.pm = self.pm.extend(['starpilotCarState'])
 
@@ -371,6 +375,8 @@ class Car:
       )
       self.CI.CS.preap_lateral_authorized = preap_authorized
     FPCS = self.starpilot_card.update(CS, FPCS, self.sm, self.starpilot_toggles, preap_authorized=preap_authorized)
+    if self.tesla_ap1_hooks is not None:
+      self.tesla_ap1_hooks.after_state_update(self.CI.CS, self.sm, self.starpilot_card, self.starpilot_toggles)
     return CS, RD, FPCS
 
   def state_publish(self, CS: car.CarState, RD: structs.RadarDataT | None, FPCS: custom.StarPilotCarState):
@@ -479,6 +485,8 @@ class Car:
         live_params = self.sm['liveParameters']
         self.CI.CC.update_live_params(live_params.roll, live_params.angleOffsetDeg,
                                       live_params.stiffnessFactor, live_params.steerRatio)
+      if self.tesla_ap1_hooks is not None:
+        self.tesla_ap1_hooks.before_apply(self.CI.CC, self.sm)
       self.last_actuators_output, can_sends = self.CI.apply(CC, now_nanos, self.starpilot_toggles)
       get_steering_limit_info = getattr(self.CI.CC, "get_steering_limit_info", None)
       self.last_steering_limit_info = get_steering_limit_info() if get_steering_limit_info is not None else None

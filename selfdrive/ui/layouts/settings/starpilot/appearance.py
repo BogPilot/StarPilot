@@ -78,6 +78,11 @@ def _theme_display_name(value: str) -> str:
         display += f" - by: {creator}"
     return display
 
+
+# BogStar startup alert preset (BogPilot defaults).
+BOGPILOT_STARTUP_TOP = "Your m∞v"
+BOGPILOT_STARTUP_BOTTOM = "Hands present, mind at ease"
+
 # ═══════════════════════════════════════════════════════════════
 # AppearanceManagerView — 6-card category hub
 # ═══════════════════════════════════════════════════════════════
@@ -700,10 +705,12 @@ class StarPilotAppearanceLayout(_SettingsPage):
             return "Stock"
         if current_top == "Hop in and buckle up!":
             return "StarPilot"
+        if current_top == BOGPILOT_STARTUP_TOP:
+            return "BogPilot"
         return "Clear"
 
     def _show_startup_alert_selector(self):
-        options = ["Stock", "StarPilot", "Clear"]
+        options = ["Stock", "StarPilot", "BogPilot", "Clear"]
         current = self._get_startup_alert_display()
 
         def on_select(res):
@@ -714,6 +721,9 @@ class StarPilotAppearanceLayout(_SettingsPage):
                 elif dialog.selection == "StarPilot":
                     self._params.put("StartupMessageTop", "Hop in and buckle up!")
                     self._params.put("StartupMessageBottom", "Human-tested, frog-approved")
+                elif dialog.selection == "BogPilot":
+                    self._params.put("StartupMessageTop", BOGPILOT_STARTUP_TOP)
+                    self._params.put("StartupMessageBottom", BOGPILOT_STARTUP_BOTTOM)
                 else:
                     self._params.remove("StartupMessageTop")
                     self._params.remove("StartupMessageBottom")
